@@ -1,25 +1,16 @@
 use crate::api;
 use crate::components::AtcButton;
 use crate::types::Product;
-use anyhow::Error;
-use yew::format::Json;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
-
-struct State {
-    product: Option<Product>,
-    get_product_error: Option<Error>,
-    get_product_loaded: bool,
-}
+use wasm_bindgen_futures::spawn_local;
 
 pub struct ProductDetail {
-    props: Props,
-    state: State,
-    link: ComponentLink<Self>,
-    task: Option<FetchTask>,
+    product: Option<Product>,
+    error: Option<String>,
+    loading: bool,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Properties, Clone, PartialEq)]
 pub struct Props {
     pub id: i32,
     pub on_add_to_cart: Callback<Product>,
@@ -28,73 +19,61 @@ pub struct Props {
 pub enum Msg {
     GetProduct,
     GetProductSuccess(Product),
-    GetProductError(Error),
+    GetProductError(String),
 }
 
 impl Component for ProductDetail {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        link.send_message(Msg::GetProduct);
-
+    fn create(ctx: &Context<Self>) -> Self {
+        ctx.link().send_message(Msg::GetProduct);
         Self {
-            props,
-            state: State {
-                product: None,
-                get_product_error: None,
-                get_product_loaded: false,
-            },
-            link,
-            task: None,
+            product: None,
+            error: None,
+            loading: true,
         }
     }
 
-    fn update(&mut self, message: Self::Message) -> ShouldRender {
-        match message {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
             Msg::GetProduct => {
-                let handler = self
-                    .link
-                    .callback(move |response: api::FetchResponse<Product>| {
-                        let (_, Json(data)) = response.into_parts();
-                        match data {
-                            Ok(product) => Msg::GetProductSuccess(product),
-                            Err(err) => Msg::GetProductError(err),
-                        }
-                    });
-
-                self.task = Some(api::get_product(self.props.id, handler));
+                self.loading = true;
+                let link = ctx.link().clone();
+                let id = ctx.props().id;
+                spawn_local(async move {
+                    match api::get_product(id).await {
+                        Ok(product) => link.send_message(Msg::GetProductSuccess(product)),
+                        Err(e) => link.send_message(Msg::GetProductError(e.to_string())),
+                    }
+                });
                 true
             }
             Msg::GetProductSuccess(product) => {
-                self.state.product = Some(product);
-                self.state.get_product_loaded = true;
+                self.product = Some(product);
+                self.loading = false;
                 true
             }
             Msg::GetProductError(error) => {
-                self.state.get_product_error = Some(error);
-                self.state.get_product_loaded = true;
+                self.error = Some(error);
+                self.loading = false;
                 true
             }
         }
     }
 
-    fn change(&mut self, _: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
-        if let Some(ref product) = self.state.product {
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        if let Some(ref product) = self.product {
             html! {
                 <div class="product_detail_container">
-                    <img class="product_detail_image" src={&product.image}/>
+                    <img class="product_detail_image" src={product.image.clone()}/>
                     <div class="product_card_name">{&product.name}</div>
                     <div style="margin: 10px 0; line-height: 24px;">{&product.description}</div>
                     <div class="product_card_price">{"$"}{&product.price}</div>
-                    <AtcButton product=product.clone() on_add_to_cart=self.props.on_add_to_cart.clone() />
+                    <AtcButton product={product.clone()} on_add_to_cart={ctx.props().on_add_to_cart.clone()} />
                 </div>
             }
-        } else if !self.state.get_product_loaded {
+        } else if self.loading {
             html! {
                 <div class="loading_spinner_container">
                     <div class="loading_spinner"></div>

@@ -2,14 +2,17 @@
 name = "Seedrust"
 version = "0.1.0"
 authors = ["sumantwarhekar <sumantwarhekar@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-yew = "0.17"
-yew-router = "0.14.0"
+yew = { version = "0.20", features = ["csr"] }
+yew-router = "0.17"
 wasm-bindgen = "0.2"
-anyhow = "1.0.32"
+anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+gloo-net = "0.2"
+wasm-bindgen-futures = "0.4"
+serde_json = "1.0"

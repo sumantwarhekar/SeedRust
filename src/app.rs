@@ -6,13 +6,9 @@ use yew_router::prelude::*;
 use crate::pages::{Home, ProductDetail};
 use crate::route::Route;
 
-struct State {
-    cart_products: Vec<CartProduct>,
-}
-
+#[derive(Default)]
 pub struct App {
-    state: State,
-    link: ComponentLink<Self>,
+    cart_products: Vec<CartProduct>,
 }
 
 pub enum Msg {
@@ -23,20 +19,14 @@ impl Component for App {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let cart_products = vec![];
-
-        Self {
-            state: State { cart_products },
-            link,
-        }
+    fn create(_ctx: &Context<Self>) -> Self {
+        Self::default()
     }
 
-    fn update(&mut self, message: Self::Message) -> ShouldRender {
-        match message {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
             Msg::AddToCart(product) => {
                 let cart_product = self
-                    .state
                     .cart_products
                     .iter_mut()
                     .find(|cp: &&mut CartProduct| cp.product.id == product.id);
@@ -44,7 +34,7 @@ impl Component for App {
                 if let Some(cp) = cart_product {
                     cp.quantity += 1;
                 } else {
-                    self.state.cart_products.push(CartProduct {
+                    self.cart_products.push(CartProduct {
                         product: product.clone(),
                         quantity: 1,
                     })
@@ -54,30 +44,27 @@ impl Component for App {
         }
     }
 
-    fn change(&mut self, _: Self::Properties) -> ShouldRender {
-        false
-    }
-
-    fn view(&self) -> Html {
-        let handle_add_to_cart = self
-            .link
-            .callback(|product: Product| Msg::AddToCart(product));
-        let cart_products = self.state.cart_products.clone();
-
-        let render = Router::render(move |switch: Route| match switch {
-            Route::ProductDetail(id) => {
-                html! {<ProductDetail id=id on_add_to_cart=handle_add_to_cart.clone() />}
-            }
-            Route::HomePage => {
-                html! {<Home cart_products=cart_products.clone() on_add_to_cart=handle_add_to_cart.clone()/>}
-            }
-        });
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let on_add_to_cart = ctx.link().callback(Msg::AddToCart);
+        let cart_products = self.cart_products.clone();
 
         html! {
-            <>
-                <Navbar cart_products=self.state.cart_products.clone() />
-                <Router<Route, ()> render=render/>
-            </>
+            <BrowserRouter>
+                <Navbar cart_products={cart_products.clone()} />
+                <Switch<Route> render={move |route| {
+                    let cart_products = cart_products.clone();
+                    let on_add_to_cart = on_add_to_cart.clone();
+                    match route {
+                        Route::ProductDetail { id } => html! {
+                            <ProductDetail id={id} on_add_to_cart={on_add_to_cart} />
+                        },
+                        Route::HomePage => html! {
+                            <Home cart_products={cart_products} on_add_to_cart={on_add_to_cart} />
+                        },
+                        Route::NotFound => html! { <h1>{"404 Not Found"}</h1> },
+                    }
+                }} />
+            </BrowserRouter>
         }
     }
 }

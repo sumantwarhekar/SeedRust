@@ -1,116 +1,92 @@
 use crate::api;
 use crate::components::ProductCard;
 use crate::types::{CartProduct, Product};
-use anyhow::Error;
-use yew::format::Json;
 use yew::prelude::*;
-use yew::services::fetch::FetchTask;
+use wasm_bindgen_futures::spawn_local;
 
-struct State {
+pub struct Home {
     products: Vec<Product>,
-    get_products_error: Option<Error>,
-    get_products_loaded: bool,
+    error: Option<String>,
+    loading: bool,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Properties, Clone, PartialEq)]
 pub struct Props {
     pub cart_products: Vec<CartProduct>,
     pub on_add_to_cart: Callback<Product>,
 }
 
-pub struct Home {
-    props: Props,
-    state: State,
-    link: ComponentLink<Self>,
-    task: Option<FetchTask>,
-}
-
 pub enum Msg {
     GetProducts,
     GetProductsSuccess(Vec<Product>),
-    GetProductsError(Error),
+    GetProductsError(String),
 }
 
 impl Component for Home {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let products = vec![];
-
-        link.send_message(Msg::GetProducts);
-
+    fn create(ctx: &Context<Self>) -> Self {
+        ctx.link().send_message(Msg::GetProducts);
         Self {
-            props,
-            state: State {
-                products,
-                get_products_error: None,
-                get_products_loaded: false,
-            },
-            link,
-            task: None,
+            products: vec![],
+            error: None,
+            loading: true,
         }
     }
 
-    fn update(&mut self, message: Self::Message) -> ShouldRender {
-        match message {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
             Msg::GetProducts => {
-                self.state.get_products_loaded = false;
-                let handler =
-                    self.link
-                        .callback(move |response: api::FetchResponse<Vec<Product>>| {
-                            let (_, Json(data)) = response.into_parts();
-                            match data {
-                                Ok(products) => Msg::GetProductsSuccess(products),
-                                Err(err) => Msg::GetProductsError(err),
-                            }
-                        });
-
-                self.task = Some(api::get_products(handler));
+                self.loading = true;
+                let link = ctx.link().clone();
+                spawn_local(async move {
+                    match api::get_products().await {
+                        Ok(products) => link.send_message(Msg::GetProductsSuccess(products)),
+                        Err(e) => link.send_message(Msg::GetProductsError(e.to_string())),
+                    }
+                });
                 true
             }
             Msg::GetProductsSuccess(products) => {
-                self.state.products = products;
-                self.state.get_products_loaded = true;
+                self.products = products;
+                self.loading = false;
                 true
             }
             Msg::GetProductsError(error) => {
-                self.state.get_products_error = Some(error);
-                self.state.get_products_loaded = true;
+                self.error = Some(error);
+                self.loading = false;
                 true
             }
         }
     }
 
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.props = props;
-        true
-    }
-
-    fn view(&self) -> Html {
-        let products: Vec<Html> = self
-            .state
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let products: Html = self
             .products
             .iter()
-            .map(|product: &Product| {
+            .map(|product| {
                 html! {
-                  <ProductCard product={product} on_add_to_cart=self.props.on_add_to_cart.clone()/>
+                    <ProductCard 
+                        product={product.clone()} 
+                        on_add_to_cart={ctx.props().on_add_to_cart.clone()}
+                    />
                 }
             })
             .collect();
 
-        if !self.state.get_products_loaded {
+        if self.loading {
             html! {
                 <div class="loading_spinner_container">
                     <div class="loading_spinner"></div>
                     <div class="loading_spinner_text">{"Loading ..."}</div>
                 </div>
             }
-        } else if let Some(_) = self.state.get_products_error {
+        } else if self.error.is_some() {
             html! {
-              <div>
-                <span>{"Error loading products! :("}</span>
-              </div>
+                <div>
+                    <span>{"Error loading products! :("}</span>
+                </div>
             }
         } else {
             html! {

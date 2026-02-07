@@ -5,9 +5,8 @@ mod pages;
 mod route;
 mod types;
 
-use wasm_bindgen::prelude::*;
+use app::App;
 
-#[wasm_bindgen(start)]
-pub fn run_app() {
-    yew::start_app::<app::App>();
+fn main() {
+    yew::Renderer::<App>::new().render();
 }

@@ -1,9 +1,12 @@
 use yew_router::prelude::*;
 
-#[derive(Switch, Debug, Clone)]
+#[derive(Clone, Routable, PartialEq)]
 pub enum Route {
-    #[to = "/product/{id}"]
-    ProductDetail(i32),
-    #[to = "/"]
+    #[at("/product/:id")]
+    ProductDetail { id: i32 },
+    #[at("/")]
     HomePage,
+    #[not_found]
+    #[at("/404")]
+    NotFound,
 }

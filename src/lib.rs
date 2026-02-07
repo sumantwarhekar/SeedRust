@@ -6,7 +6,9 @@ mod route;
 mod types;
 
 use app::App;
+use wasm_bindgen::prelude::*;
 
-fn main() {
+#[wasm_bindgen(start)]
+pub fn main() {
     yew::Renderer::<App>::new().render();
 }

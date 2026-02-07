@@ -1,4 +1,6 @@
 {
+  "buildCommand": "cargo make build",
+  "outputDirectory": "static",
   "rewrites": [
     {
       "source": "/(.*)",
